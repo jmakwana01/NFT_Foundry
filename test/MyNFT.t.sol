@@ -86,6 +86,67 @@ contract MyNFTTest is Test{
         vm.stopPrank();
     }
 
-    
+    // =============================================================
+    //                        DEPLOYMENT & INTERFACE TESTS
+    // =============================================================
 
+    /**
+     * @dev Test that contract deploys with correct intial state
+        Verifies all deployment parameters are set correctly
+     */
+
+    function test_Deployment()public view {
+        // check basic contract metadata 
+        assertEq(nft.name(), NAME,"Contract name should match deployment parameter");
+        assertEq(nft.symbol(),SYMBOL,"Contract symbol should match deployment parameter");
+        assertEq(nft.owner(),owner,"Contract owner should be set correctly");
+
+        // Check token id management 
+        assertEq(nft.getCurrentTokenId(),1,"Token ID counter should start at 1");
+        assertEq(nft.totalSupply(), 0,"Total sypply should start at 0");
+        assertEq(nft.totalMinted(),0,"Total minted should start at 0");
+
+        //check mint configuration
+        assertEq(nft.mintPrice(), MINT_PRICE,"Mint price should match deployment setting");
+        assertFalse(nft.publicMintEnabled(),"public minting should be disabled by default");
+        assertFalse(nft.whitelistMintEnabled(),"whitelist minting should be disabled by default");
+
+        //check role assignments - owner should have all admin roles
+        assertTrue(nft.hasRole(nft.DEFAULT_ADMIN_ROLE(), owner),"Owner should have default admin role");
+        assertTrue(nft.hasRole(nft.PAUSER_ROLE(), owner),"Owner should have pauser role");
+        assertTrue(nft.hasRole(nft.MINTER_ROLE(), owner),"Owner should have minter role");
+
+        //check granted roles from setup
+        assertTrue(nft.hasRole(nft.MINTER_ROLE(), minter),"Minter address should have minter role");
+        assertTrue(nft.hasRole(nft.PAUSER_ROLE(), pauser),"Pauser address should have pauser role");
+
+        //check constants
+        assertEq(nft.MAX_SUPPLY(), MAX_SUPPLY,"Max supply constant should match expected value");
+        assertEq(nft.MAX_PER_WALLET(),MAX_PER_WALLET,"Max per wallet should match expected value");
+    }
+
+    /**
+     * @dev Test that contract implements all required interfaces
+     * ERC721 contracts should support multiple interface standards
+     */
+    function test_SupportsInterface() public {
+        // Core ERC721 interface
+        assertTrue(nft.supportsInterface(type(IERC721).interfaceId), "Should support ERC721 interface");
+        
+        // ERC721Enumerable extension - allows iteration through all tokens
+        assertTrue(nft.supportsInterface(type(IERC721Enumerable).interfaceId), "Should support ERC721Enumerable");
+        
+        // AccessControl interface - role-based permissions
+        assertTrue(nft.supportsInterface(type(IAccessControl).interfaceId), "Should support AccessControl");
+        
+        // EIP-2981 Royalty standard - royalty payments on secondary sales
+        assertTrue(nft.supportsInterface(0x2a55205a), "Should support EIP-2981 royalty standard");
+        
+        // ERC165 interface detection standard
+        assertTrue(nft.supportsInterface(type(IERC165).interfaceId), "Should support ERC165");
+    }
+    
+    // =============================================================
+    //                        MINTING TESTS
+    // =============================================================
 }
