@@ -149,4 +149,211 @@ contract MyNFTTest is Test{
     // =============================================================
     //                        MINTING TESTS
     // =============================================================
+
+    /**
+     * @dev Test admin minting for custom URI
+        Only address with MINTER_ROLE should be able to mint with custom URIs
+     */
+
+    function test_MinterRoleMint()public{
+        //Arrange:Use Minter address to mint with custom URI
+        // string memory customURI = "ipfs://custom-hash-for-special-nft";
+
+        // //ACT: Mint token with custom URI
+        // nft.mintWithURI(user1, customURI);
+        string memory customURI = "ipfs://custom-hash";
+        vm.prank(owner);
+        nft.setBaseURI("");
+
+        vm.prank(minter);
+        nft.mintWithURI(user1, customURI);
+        
+        assertEq(nft.tokenURI(1), customURI, "Custom URI should be returned exactly");
+        //Assert: Verify token was minted correctly
+        assertEq(nft.balanceOf(user1),1,"User should have 1 token");
+        assertEq(nft.ownerOf(1),user1,"user1 should own token ID 1");
+        assertEq(nft.tokenURI(1),customURI,"Token should have custom URI");
+        assertEq(nft.totalSupply(),1,"Total supply should be 1");
+        assertEq(nft.getCurrentTokenId(),2,"Next token ID should be 2");
+    }
+
+    /**
+     * @dev Test batch minting functionalty
+     Verifies that multiple tokens can be minted efficiently in one transaction
+     */
+
+    function test_BatchMint()public {
+        //Arrange: Create array of reciepients for batch mint
+        address[] memory recipients = new address[](3);
+        recipients[0] = user1;
+        recipients[1]= user2;
+        recipients[2]= user3;
+
+        //ACT: Batch mint to all recipients
+        vm.prank(minter);
+        nft.batchMint(recipients);
+
+        //Assert: Verify all tokens were minted correctly
+        assertEq(nft.totalSupply(),3,"Total supply should be 3 after batch mint");
+        assertEq(nft.balanceOf(user1),1,"User 1 should have 1 token");
+        assertEq(nft.balanceOf(user2),1,"User 2 should have 1 token");
+        assertEq(nft.balanceOf(user3),1,"User 3 should have 1 token");
+
+        //Verify token ownership by ID
+        assertEq(nft.ownerOf(1),user1,"User1 should own token 1");
+        assertEq(nft.ownerOf(2),user2,"User2 should own token 2");
+        assertEq(nft.ownerOf(3),user3,"User3 should own token 3");
+    }
+
+    function test_PublicMint_Success() public {
+        //Arrange enable public minting(onlyOwner)
+        vm.prank(owner);
+        nft.setPublicMintEnabled(true);
+
+        //Act User mints a token woth correct payment
+        vm.prank(user1);
+        nft.publicMint{value:MINT_PRICE}(user1);
+        //Assert: Verify mint was successful
+        assertEq(nft.balanceOf(user1),1,"user should have 1 token after public mint");
+        assertEq(nft.mintedByAddress(user1),1,"Should track 1 token minted by user");
+        assertEq(nft.ownerOf(1),user1,"User should own the minted token");
+
+        //Verify contract recieved payment
+        assertEq(address(nft).balance,MINT_PRICE,"Contract should have received mint payment");
+    }
+
+    /**
+     * @dev Test public minting fails when not enabled
+        should revert with custom error when public minting is disabled
+     */
+    function test_PublicMint_NotEnabled()public{
+        //public minting is disabled by default in setup
+
+        //act 
+        vm.prank(user1);
+        vm.expectRevert( MyNFT.PublicMintNotEnabled.selector);
+       
+        nft.publicMint{value:MINT_PRICE}(user1);
+    }
+
+    /**
+     * @dev Test public minting fails with insufficient payment
+     should revert when payment is leass than mint price
+     */
+    function test_PublicMint_InsufficientPayment()public{
+        //Arrange:Enable public Minting
+        vm.prank(owner);
+        nft.setPublicMintEnabled(true);
+
+        //ACT & Assert: Mint with Insufficient payment should fail
+        vm.prank(user1);
+        vm.expectRevert(MyNFT.InsufficientPayment.selector);
+        nft.publicMint{value:MINT_PRICE -1}(user1);//send 1 wei less than required
+
+    }
+
+    /**
+     * @dev Test Public minting respeccts per wallet limits
+     Use
+     */
+    
+    function test_PublicMint_ExceedsMaxPerWallet()public{
+        //Arrange: Enable public minting 
+        vm.prank(owner);
+        nft.setPublicMintEnabled(true);
+
+        //ACT: Mint maximum allowed tokens
+        vm.startPrank(user1);
+        for (uint256 i=0;i<MAX_PER_WALLET;i++){
+            nft.publicMint{value:MINT_PRICE}(user1);
+        }
+
+        //ACT & ASSERT: Attempt to mint one more shoudl fail
+        vm.expectRevert(MyNFT.ExceedsMaxPerWallet.selector);
+        nft.publicMint{value:MINT_PRICE}(user1);
+        vm.stopPrank();
+
+        //Verify user has exactly MAX_PER_WALLET tokens
+        assertEq(nft.balanceOf(user1),MAX_PER_WALLET,"User should have max allowed tokens");
+        assertEq(nft.mintedByAddress(user1),MAX_PER_WALLET,"should track max mint per address");
+    }
+
+    /**
+     * @dev Test successful whitelist minting
+     Whitelisted user should be able to mint when whitelist is enabled
+
+     */
+      function test_WhitelistMint_Success() public {
+        // Arrange: Add user to whitelist and enable whitelist minting
+        address[] memory toWhitelist = new address[](1);
+        toWhitelist[0] = user1;
+        
+        vm.startPrank(owner);
+        nft.addToWhitelist(toWhitelist);           // Add to whitelist
+        nft.setWhitelistMintEnabled(true);         // Enable whitelist minting
+        vm.stopPrank();
+        
+        // Verify user is whitelisted
+        assertTrue(nft.isWhitelisted(user1), "User should be whitelisted");
+        
+        // Act: Whitelist mint
+        vm.prank(user1);
+        nft.whitelistMint{value: MINT_PRICE}(user1);
+        
+        // Assert: Verify mint was successful
+        assertEq(nft.balanceOf(user1), 1, "Whitelisted user should have 1 token");
+        assertEq(nft.mintedByAddress(user1), 1, "Should track whitelist mint");
+    }
+
+       /**
+     * @dev Test whitelist minting fails when not enabled
+     * Should fail even for whitelisted users if whitelist minting is disabled
+     */
+    function test_WhitelistMint_NotEnabled() public {
+        // Arrange: Add user to whitelist but don't enable whitelist minting
+        address[] memory toWhitelist = new address[](1);
+        toWhitelist[0] = user1;
+        
+        vm.prank(owner);
+        nft.addToWhitelist(toWhitelist);
+        // Note: whitelist minting remains disabled
+        
+        // Act & Assert: Should fail even though user is whitelisted
+        vm.prank(user1);
+        vm.expectRevert(MyNFT.WhitelistMintNotEnabled.selector);
+        nft.whitelistMint{value: MINT_PRICE}(user1);
+    }
+    
+    /**
+     * @dev Test whitelist minting fails for non-whitelisted users
+     * Should reject minting attempts from users not on whitelist
+     */
+    function test_WhitelistMint_NotWhitelisted() public {
+        // Arrange: Enable whitelist minting but don't whitelist user1
+        vm.prank(owner);
+        nft.setWhitelistMintEnabled(true);
+        
+        // Verify user is not whitelisted
+        assertFalse(nft.isWhitelisted(user1), "User should not be whitelisted");
+        
+        // Act & Assert: Non-whitelisted user should not be able to mint
+        vm.prank(user1);
+        vm.expectRevert(MyNFT.NotWhitelisted.selector);
+        nft.whitelistMint{value: MINT_PRICE}(user1);
+    }
+
+    // =============================================================
+    //                        ACCESS CONTROL TESTS
+    // =============================================================
+
+    function test_OnlyMinterCanBatchMint()public{
+        address[] memory recipients = new address[](1);
+        recipients[0]= user1;
+
+        vm.prank(hacker);
+        vm.expectRevert();
+        nft.batchMint(recipients);
+    }
+
+    
 }

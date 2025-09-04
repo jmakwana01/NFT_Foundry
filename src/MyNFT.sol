@@ -425,7 +425,7 @@ contract MyNFT is
         override(ERC721, ERC721URIStorage)
         returns (string memory)
     {
-        return super.tokenURI(tokenId);
+        return ERC721URIStorage.tokenURI(tokenId);
     }
 
     /**
