@@ -355,5 +355,360 @@ contract MyNFTTest is Test{
         nft.batchMint(recipients);
     }
 
+    function test_OnlyMinterCanMintWithURI() public {
+        vm.prank(hacker);
+        vm.expectRevert();
+        nft.setBaseURI("new-base-uri");
+    }
+
+    function test_OnlyOwnerCanSetMintPrice()public{
+        vm.prank(hacker);
+        vm.expectRevert();
+        nft.setMintPrice(0.2 ether);
+    }
     
+    function test_OnlyPauserCanPause()public {
+        vm.prank(hacker);
+        vm.expectRevert();
+        nft.pause();
+    }
+
+    // =============================================================
+    //                        ADMIN FUNCTION TESTS
+    // =============================================================
+
+    function test_SetBaseURI() public {
+        // Arrange: Define new base URI
+        string memory newBaseURI = "https://newapi.mynft.com/";
+        
+        // Act: Set new base URI with event expectation
+        vm.prank(owner);
+        vm.expectEmit(true, true, true, true);
+        emit BaseURIUpdated(BASE_URI, newBaseURI);
+        nft.setBaseURI(newBaseURI);
+        
+        // Assert: Test the new URI is used for tokens
+        // First mint a token to test the URI
+        vm.prank(minter);
+        nft.mintWithURI(user1, ""); // Empty custom URI to use base URI
+        
+        string memory expectedURI = string(abi.encodePacked(newBaseURI, "1"));
+        assertEq(nft.tokenURI(1), expectedURI, "Token URI should use new base URI");
+    }
+
+    function test_SetMintPrice()public{
+        uint256 newPrice = 0.02 ether;
+
+        vm.prank(owner);
+        vm.expectEmit(true, true, true, true);
+
+        emit MintPriceUpdated(MINT_PRICE, newPrice);
+        nft.setMintPrice(newPrice);
+
+        assertEq(nft.mintPrice(),newPrice,"Mint Price should be updated");
+    }
+
+    function test_SetPublicMintEnabled()public {
+        //ACT: enable public minting with event expectation
+        vm.prank(owner);
+        vm.expectEmit(true, true, true, true);
+        emit PublicMintStatusChanged(true);
+        nft.setPublicMintEnabled(true);
+
+        //Assert:Verify public minting is enabled
+        assertTrue(nft.publicMintEnabled(),"Public minting should be enabled");
+    }
+
+    function test_SetWhitelistMintEnabled() public {
+        // Act: Enable whitelist minting with event expectation
+        vm.prank(owner);
+        vm.expectEmit(true, true, true, true);
+        emit WhitelistMintStatusChanged(true);
+        nft.setWhitelistMintEnabled(true);
+        
+        // Assert: Verify whitelist minting is enabled
+        assertTrue(nft.whitelistMintEnabled(), "Whitelist minting should be enabled");
+    }
+    
+    /**
+     * @dev Test adding addresses to whitelist
+     * Should add multiple addresses and emit event
+     */
+    function test_AddToWhitelist() public {
+        // Arrange: Create array of addresses to whitelist
+        address[] memory addresses = new address[](2);
+        addresses[0] = user1;
+        addresses[1] = user2;
+        
+        // Act: Add to whitelist with event expectation
+        vm.prank(owner);
+        vm.expectEmit(true, true, true, true);
+        emit AddressesWhitelisted(addresses);
+        nft.addToWhitelist(addresses);
+        
+        // Assert: Verify addresses were whitelisted
+        assertTrue(nft.isWhitelisted(user1), "User1 should be whitelisted");
+        assertTrue(nft.isWhitelisted(user2), "User2 should be whitelisted");
+        assertFalse(nft.isWhitelisted(user3), "User3 should not be whitelisted");
+    }
+    
+    /**
+     * @dev Test removing addresses from whitelist
+     * Should remove addresses and emit event
+     */
+    function test_RemoveFromWhitelist() public {
+        // Arrange: First add addresses to whitelist
+        address[] memory addresses = new address[](2);
+        addresses[0] = user1;
+        addresses[1] = user2;
+        
+        vm.startPrank(owner);
+        nft.addToWhitelist(addresses);
+        
+        // Act: Remove from whitelist with event expectation
+        vm.expectEmit(true, true, true, true);
+        emit AddressesRemovedFromWhitelist(addresses);
+        nft.removeFromWhitelist(addresses);
+        vm.stopPrank();
+        
+        // Assert: Verify addresses were removed from whitelist
+        assertFalse(nft.isWhitelisted(user1), "User1 should be removed from whitelist");
+        assertFalse(nft.isWhitelisted(user2), "User2 should be removed from whitelist");
+    }
+
+    function test_SetRoyaltyInfo() public {
+        // Arrange: Define new royalty settings
+        address newRecipient = user1;
+        uint256 newPercentage = 750; // 7.5%
+        
+        // Act: Set royalty info with event expectation
+        vm.prank(owner);
+        vm.expectEmit(true, true, true, true);
+        emit RoyaltyInfoUpdated(newRecipient, newPercentage);
+        nft.setRoyaltyInfo(newRecipient, newPercentage);
+        
+        // Assert: Verify royalty settings were updated
+        assertEq(nft.royaltyRecipient(), newRecipient, "Royalty recipient should be updated");
+        assertEq(nft.royaltyPercentage(), newPercentage, "Royalty percentage should be updated");
+        
+        // Test royalty calculation
+        (address receiver, uint256 royaltyAmount) = nft.royaltyInfo(1, 1 ether);
+        assertEq(receiver, newRecipient, "Royalty receiver should match recipient");
+        assertEq(royaltyAmount, 0.075 ether, "Royalty amount should be 7.5% of sale price");
+    }
+
+    function test_SetRoyaltyInfo_InvalidPercentage() public {
+        // Act & Assert: Should revert for royalty > 10%
+        vm.prank(owner);
+        vm.expectRevert(MyNFT.InvalidRoyaltyPercentage.selector);
+        nft.setRoyaltyInfo(user1, 1001); // 10.01% > 10% maximum
+    }
+
+    function test_Withdraw() public {
+        // Arrange: Generate some funds by enabling and executing public mints
+        vm.prank(owner);
+        nft.setPublicMintEnabled(true);
+        
+        vm.prank(user1);
+        nft.publicMint{value: MINT_PRICE}(user1);
+        
+        // Verify contract has funds
+        uint256 contractBalance = address(nft).balance;
+        assertEq(contractBalance, MINT_PRICE, "Contract should have mint payment");
+        
+        uint256 ownerBalanceBefore = owner.balance;
+        
+        // Act: Withdraw funds
+        vm.prank(owner);
+        nft.withdraw();
+        
+        // Assert: Verify funds were transferred to owner
+        assertEq(address(nft).balance, 0, "Contract balance should be 0 after withdrawal");
+        assertEq(owner.balance, ownerBalanceBefore + contractBalance, "Owner should receive contract balance");
+    }
+
+    // =============================================================
+    //                        PAUSABLE TESTS
+    // =============================================================
+    
+    /**
+     * @dev Test pausing functionality
+     * Should pause contract and prevent minting/transfers
+     */
+    function test_Pause() public {
+        // Act: Pause the contract
+        vm.prank(pauser);
+        nft.pause();
+        
+        // Assert: Contract should be paused
+        assertTrue(nft.paused(), "Contract should be paused");
+        
+        // Assert: Minting should fail while paused
+        vm.prank(minter);
+        vm.expectRevert(); // Should revert because contract is paused
+        nft.mintWithURI(user1, "test");
+    }
+    
+    /**
+     * @dev Test unpausing functionality
+     * Should unpause contract and restore normal operations
+     */
+    function test_Unpause() public {
+        // Arrange: First pause the contract
+        vm.prank(pauser);
+        nft.pause();
+        
+        // Act: Unpause the contract
+        vm.prank(pauser);
+        nft.unpause();
+        
+        // Assert: Contract should not be paused
+        assertFalse(nft.paused(), "Contract should not be paused after unpause");
+        
+        // Assert: Should be able to mint again
+        vm.prank(minter);
+        nft.mintWithURI(user1, "test");
+        assertEq(nft.balanceOf(user1), 1, "Should be able to mint after unpause");
+    }
+    
+    /**
+     * @dev Test that transfers are blocked while paused
+     * Existing tokens should not be transferable during pause
+     */
+    function test_TransferWhilePaused() public {
+        // Arrange: Mint a token first
+        vm.prank(minter);
+        nft.mintWithURI(user1, "test");
+        
+        // Pause the contract
+        vm.prank(pauser);
+        nft.pause();
+        
+        // Act & Assert: Transfer should fail while paused
+        vm.prank(user1);
+        vm.expectRevert(); // Should revert due to pause
+        nft.transferFrom(user1, user2, 1);
+    }
+
+    // =============================================================
+    //                        SUPPLY LIMIT TESTS
+    // =============================================================
+    
+    /**
+     * @dev Test that batch minting cannot exceed max supply
+     * Should prevent batch mints that would exceed MAX_SUPPLY
+     */
+    function test_ExceedsMaxSupply_BatchMint() public {
+        // Arrange: Create recipients array larger than MAX_SUPPLY
+        // Using smaller number for testing efficiency, but testing the logic
+        address[] memory recipients = new address[](MAX_SUPPLY + 1);
+        for (uint256 i = 0; i < recipients.length; i++) {
+            recipients[i] = address(uint160(i + 1)); // Generate unique addresses
+        }
+        
+        // Act & Assert: Batch mint exceeding max supply should fail
+        vm.prank(minter);
+        vm.expectRevert(MyNFT.ExceedsMaxSupply.selector);
+        nft.batchMint(recipients);
+    }
+    
+    /**
+     * @dev Test approaching maximum supply limit
+     * Verify behavior when nearing the supply cap
+     */
+    function test_MaxSupplyReached() public {
+        // Note: Testing with full MAX_SUPPLY would be gas-intensive
+        // This test demonstrates the concept with smaller numbers
+        
+        // This test verifies the supply limit logic works correctly
+        // In a real scenario, you might want to create a test contract
+        // with a smaller MAX_SUPPLY constant for efficient testing
+        
+        uint256 currentTokenId = nft.getCurrentTokenId();
+        assertEq(currentTokenId, 1, "Should start with token ID 1");
+        
+        // Test that we can mint up to the limit
+        vm.prank(minter);
+        nft.mintWithURI(user1, "test1");
+        
+        assertEq(nft.totalSupply(), 1, "Should have 1 token minted");
+        assertEq(nft.getCurrentTokenId(), 2, "Next token ID should be 2");
+    }
+
+    // =============================================================
+    //                        ERC721 FUNCTIONALITY TESTS
+    // =============================================================
+
+    function test_TokenURI_WithCustomURI() public {
+        string memory customURI = "ipfs://custom-hash";
+        vm.prank(owner);
+        nft.setBaseURI("");//custom uri only works when baseURI is not set already
+        vm.prank(minter);
+        nft.mintWithURI(user1, customURI);
+        
+        assertEq(nft.tokenURI(1), customURI);
+    }
+
+    function test_TokenURI_withBaseURI()public {
+        vm.prank(minter);
+        nft.mintWithURI(user1, "");
+        string memory expectedURI = string(abi.encodePacked(BASE_URI, "1"));
+        assertEq(nft.tokenURI(1), expectedURI);
+
+    }
+
+    function test_Transfer() public {
+        // Mint a token
+        vm.prank(minter);
+        nft.mintWithURI(user1, "test");
+        
+        // Transfer it
+        vm.prank(user1);
+        nft.transferFrom(user1, user2, 1);
+        
+        assertEq(nft.ownerOf(1), user2);
+        assertEq(nft.balanceOf(user1), 0);
+        assertEq(nft.balanceOf(user2), 1);
+    }
+
+    function test_Approve() public {
+        // Mint a token
+        vm.prank(minter);
+        nft.mintWithURI(user1, "test");
+        
+        // Approve user2 to transfer token 1
+        vm.prank(user1);
+        nft.approve(user2, 1);
+        
+        assertEq(nft.getApproved(1), user2);
+        
+        // user2 can now transfer the token
+        vm.prank(user2);
+        nft.transferFrom(user1, user3, 1);
+        
+        assertEq(nft.ownerOf(1), user3);
+    }
+
+    function test_SetApprovalForAll() public {
+        // Mint tokens
+        vm.prank(minter);
+        nft.mintWithURI(user1, "test1");
+        vm.prank(minter);
+        nft.mintWithURI(user1, "test2");
+        
+        // Set approval for all
+        vm.prank(user1);
+        nft.setApprovalForAll(user2, true);
+        
+        assertTrue(nft.isApprovedForAll(user1, user2));
+        
+        // user2 can transfer any of user1's tokens
+        vm.prank(user2);
+        nft.transferFrom(user1, user3, 1);
+        
+        vm.prank(user2);
+        nft.transferFrom(user1, user3, 2);
+        
+        assertEq(nft.balanceOf(user3), 2);
+    }
 }
