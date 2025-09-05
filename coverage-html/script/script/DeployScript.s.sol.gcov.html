@@ -1,0 +1,150 @@
+<!DOCTYPE HTML PUBLIC "-//W3C//DTD HTML 4.01 Transitional//EN">
+
+<html lang="en">
+
+<head>
+  <meta http-equiv="Content-Type" content="text/html; charset=UTF-8">
+  <title>LCOV - lcov.info - script/script/DeployScript.s.sol</title>
+  <link rel="stylesheet" type="text/css" href="../../gcov.css">
+</head>
+
+<body>
+
+          <table width="100%" border=0 cellspacing=0 cellpadding=0>
+            <tr><td class="title">LCOV - code coverage report</td></tr>
+            <tr><td class="ruler"><img src="../../glass.png" width=3 height=3 alt=""></td></tr>
+
+            <tr>
+              <td width="100%">
+                <table cellpadding=1 border=0 width="100%">
+          <tr>
+            <td width="10%" class="headerItem">Current view:</td>
+            <td width="10%" class="headerValue"><a href="../../index.html">top level</a> - <a href="index.html">script/script</a> - DeployScript.s.sol<span style="font-size: 80%;"> (source / <a href="DeployScript.s.sol.func-c.html">functions</a>)</span></td>
+            <td width="5%"></td>
+            <td width="5%"></td>
+            <td width="5%" class="headerCovTableHead">Coverage</td>
+            <td width="5%" class="headerCovTableHead" title="Covered + Uncovered code">Total</td>
+            <td width="5%" class="headerCovTableHead" title="Exercised code only">Hit</td>
+          </tr>
+          <tr>
+            <td class="headerItem">Test:</td>
+            <td class="headerValue">lcov.info</td>
+            <td></td>
+            <td class="headerItem">Lines:</td>
+            <td class="headerCovTableEntryLo">0.0&nbsp;%</td>
+            <td class="headerCovTableEntry">23</td>
+            <td class="headerCovTableEntry">0</td>
+          </tr>
+          <tr>
+            <td class="headerItem">Test Date:</td>
+            <td class="headerValue">2025-09-05 09:03:52</td>
+            <td></td>
+            <td class="headerItem">Functions:</td>
+            <td class="headerCovTableEntryLo">0.0&nbsp;%</td>
+            <td class="headerCovTableEntry">1</td>
+            <td class="headerCovTableEntry">0</td>
+          </tr>
+                  <tr><td><img src="../../glass.png" width=3 height=3 alt=""></td></tr>
+                </table>
+              </td>
+            </tr>
+
+            <tr><td class="ruler"><img src="../../glass.png" width=3 height=3 alt=""></td></tr>
+          </table>
+
+          <table cellpadding=0 cellspacing=0 border=0>
+            <tr>
+              <td><br></td>
+            </tr>
+            <tr>
+              <td>
+<pre class="sourceHeading">            Line data    Source code</pre>
+<pre class="source">
+<span id="L1"><span class="lineNum">       1</span>              : // SPDX-License-Identifier: MIT</span>
+<span id="L2"><span class="lineNum">       2</span>              : pragma solidity ^0.8.20;</span>
+<span id="L3"><span class="lineNum">       3</span>              : </span>
+<span id="L4"><span class="lineNum">       4</span>              : import &quot;forge-std/Script.sol&quot;;</span>
+<span id="L5"><span class="lineNum">       5</span>              : import &quot;../src/MyNFT.sol&quot;;</span>
+<span id="L6"><span class="lineNum">       6</span>              : </span>
+<span id="L7"><span class="lineNum">       7</span>              : /**</span>
+<span id="L8"><span class="lineNum">       8</span>              :  * @title DeployScript</span>
+<span id="L9"><span class="lineNum">       9</span>              :  * @dev Script to deploy MyNFT contract using Foundry</span>
+<span id="L10"><span class="lineNum">      10</span>              :  * @notice Run with: forge script script/Deploy.s.sol:DeployScript --broadcast --rpc-url &lt;network&gt;</span>
+<span id="L11"><span class="lineNum">      11</span>              :  */</span>
+<span id="L12"><span class="lineNum">      12</span>              : contract DeployScript is Script {</span>
+<span id="L13"><span class="lineNum">      13</span>              :     // Deployment parameters - modify these as needed</span>
+<span id="L14"><span class="lineNum">      14</span>              :     string constant NAME = &quot;My NFT Collection&quot;;</span>
+<span id="L15"><span class="lineNum">      15</span>              :     string constant SYMBOL = &quot;MNC&quot;;</span>
+<span id="L16"><span class="lineNum">      16</span>              :     string constant BASE_URI = &quot;https://ipfs.io/ipfs/QmexAVFvkq3FREjk3yKJAi779y96jKjNJ4BATxRC7uCX6K&quot;;</span>
+<span id="L17"><span class="lineNum">      17</span>              :     </span>
+<span id="L18"><span class="lineNum">      18</span> <span class="tlaUNC tlaBgUNC">           0 :     function run() external {</span></span>
+<span id="L19"><span class="lineNum">      19</span>              :         // Get deployment parameters from environment variables or use defaults</span>
+<span id="L20"><span class="lineNum">      20</span> <span class="tlaUNC">           0 :         string memory name = vm.envOr(&quot;NFT_NAME&quot;, NAME);</span></span>
+<span id="L21"><span class="lineNum">      21</span> <span class="tlaUNC">           0 :         string memory symbol = vm.envOr(&quot;NFT_SYMBOL&quot;, SYMBOL);</span></span>
+<span id="L22"><span class="lineNum">      22</span> <span class="tlaUNC">           0 :         string memory baseURI = vm.envOr(&quot;NFT_BASE_URI&quot;, BASE_URI);</span></span>
+<span id="L23"><span class="lineNum">      23</span>              :         </span>
+<span id="L24"><span class="lineNum">      24</span>              :         // Get deployer private key from environment</span>
+<span id="L25"><span class="lineNum">      25</span> <span class="tlaUNC">           0 :         uint256 deployerPrivateKey = vm.envUint(&quot;PRIVATE_KEY&quot;);</span></span>
+<span id="L26"><span class="lineNum">      26</span> <span class="tlaUNC">           0 :         address deployer = vm.addr(deployerPrivateKey);</span></span>
+<span id="L27"><span class="lineNum">      27</span>              :         </span>
+<span id="L28"><span class="lineNum">      28</span> <span class="tlaUNC">           0 :         console.log(&quot;Deploying contracts with deployer:&quot;, deployer);</span></span>
+<span id="L29"><span class="lineNum">      29</span> <span class="tlaUNC">           0 :         console.log(&quot;Deployer balance:&quot;, deployer.balance);</span></span>
+<span id="L30"><span class="lineNum">      30</span>              :         </span>
+<span id="L31"><span class="lineNum">      31</span> <span class="tlaUNC">           0 :         vm.startBroadcast(deployerPrivateKey);</span></span>
+<span id="L32"><span class="lineNum">      32</span>              :         </span>
+<span id="L33"><span class="lineNum">      33</span>              :         // Deploy the NFT contract</span>
+<span id="L34"><span class="lineNum">      34</span> <span class="tlaUNC">           0 :         MyNFT nft = new MyNFT(</span></span>
+<span id="L35"><span class="lineNum">      35</span>              :             name,</span>
+<span id="L36"><span class="lineNum">      36</span>              :             symbol,</span>
+<span id="L37"><span class="lineNum">      37</span>              :             baseURI,</span>
+<span id="L38"><span class="lineNum">      38</span>              :             deployer</span>
+<span id="L39"><span class="lineNum">      39</span>              :         );</span>
+<span id="L40"><span class="lineNum">      40</span>              :         </span>
+<span id="L41"><span class="lineNum">      41</span> <span class="tlaUNC">           0 :         console.log(&quot;MyNFT deployed at:&quot;, address(nft));</span></span>
+<span id="L42"><span class="lineNum">      42</span>              :         </span>
+<span id="L43"><span class="lineNum">      43</span>              :         // Optional: Set initial configuration</span>
+<span id="L44"><span class="lineNum">      44</span>              :         // nft.setMintPrice(0.01 ether);</span>
+<span id="L45"><span class="lineNum">      45</span>              :         // nft.setPublicMintEnabled(true);</span>
+<span id="L46"><span class="lineNum">      46</span>              :         </span>
+<span id="L47"><span class="lineNum">      47</span> <span class="tlaUNC">           0 :         vm.stopBroadcast();</span></span>
+<span id="L48"><span class="lineNum">      48</span>              :         </span>
+<span id="L49"><span class="lineNum">      49</span>              :         // Log important information</span>
+<span id="L50"><span class="lineNum">      50</span> <span class="tlaUNC">           0 :         console.log(&quot;=== Deployment Summary ===&quot;);</span></span>
+<span id="L51"><span class="lineNum">      51</span> <span class="tlaUNC">           0 :         console.log(&quot;Contract Address:&quot;, address(nft));</span></span>
+<span id="L52"><span class="lineNum">      52</span> <span class="tlaUNC">           0 :         console.log(&quot;Contract Name:&quot;, nft.name());</span></span>
+<span id="L53"><span class="lineNum">      53</span> <span class="tlaUNC">           0 :         console.log(&quot;Contract Symbol:&quot;, nft.symbol());</span></span>
+<span id="L54"><span class="lineNum">      54</span> <span class="tlaUNC">           0 :         console.log(&quot;Owner:&quot;, nft.owner());</span></span>
+<span id="L55"><span class="lineNum">      55</span> <span class="tlaUNC">           0 :         console.log(&quot;Max Supply:&quot;, nft.MAX_SUPPLY());</span></span>
+<span id="L56"><span class="lineNum">      56</span> <span class="tlaUNC">           0 :         console.log(&quot;Mint Price:&quot;, nft.mintPrice());</span></span>
+<span id="L57"><span class="lineNum">      57</span> <span class="tlaUNC">           0 :         console.log(&quot;Public Mint Enabled:&quot;, nft.publicMintEnabled());</span></span>
+<span id="L58"><span class="lineNum">      58</span>              :         </span>
+<span id="L59"><span class="lineNum">      59</span>              :         // Save deployment info to file for reference</span>
+<span id="L60"><span class="lineNum">      60</span> <span class="tlaUNC">           0 :         string memory deploymentInfo = string(abi.encodePacked(</span></span>
+<span id="L61"><span class="lineNum">      61</span>              :             '{\n',</span>
+<span id="L62"><span class="lineNum">      62</span>              :             '  &quot;contractAddress&quot;: &quot;', vm.toString(address(nft)), '&quot;,\n',</span>
+<span id="L63"><span class="lineNum">      63</span>              :             '  &quot;contractName&quot;: &quot;', name, '&quot;,\n',</span>
+<span id="L64"><span class="lineNum">      64</span>              :             '  &quot;contractSymbol&quot;: &quot;', symbol, '&quot;,\n',</span>
+<span id="L65"><span class="lineNum">      65</span>              :             '  &quot;deployer&quot;: &quot;', vm.toString(deployer), '&quot;,\n',</span>
+<span id="L66"><span class="lineNum">      66</span>              :             '  &quot;network&quot;: &quot;', vm.envOr(&quot;NETWORK_NAME&quot;, string(&quot;unknown&quot;)), '&quot;,\n',</span>
+<span id="L67"><span class="lineNum">      67</span>              :             '  &quot;timestamp&quot;: &quot;', vm.toString(block.timestamp), '&quot;\n',</span>
+<span id="L68"><span class="lineNum">      68</span>              :             '}'</span>
+<span id="L69"><span class="lineNum">      69</span>              :         ));</span>
+<span id="L70"><span class="lineNum">      70</span>              :         </span>
+<span id="L71"><span class="lineNum">      71</span> <span class="tlaUNC">           0 :         vm.writeFile(&quot;deployments/latest.json&quot;, deploymentInfo);</span></span>
+<span id="L72"><span class="lineNum">      72</span> <span class="tlaUNC">           0 :         console.log(&quot;Deployment info saved to deployments/latest.json&quot;);</span></span>
+<span id="L73"><span class="lineNum">      73</span>              :     }</span>
+<span id="L74"><span class="lineNum">      74</span>              : }</span>
+        </pre>
+              </td>
+            </tr>
+          </table>
+          <br>
+
+          <table width="100%" border=0 cellspacing=0 cellpadding=0>
+            <tr><td class="ruler"><img src="../../glass.png" width=3 height=3 alt=""></td></tr>
+            <tr><td class="versionInfo">Generated by: <a href="https://github.com//linux-test-project/lcov" target="_parent">LCOV version 2.0-1</a></td></tr>
+          </table>
+          <br>
+
+</body>
+</html>

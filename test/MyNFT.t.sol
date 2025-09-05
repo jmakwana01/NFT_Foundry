@@ -711,4 +711,363 @@ contract MyNFTTest is Test{
         
         assertEq(nft.balanceOf(user3), 2);
     }
+
+    // =============================================================
+    //                        ENUMERABLE TESTS
+    // =============================================================
+
+    function test_TokensByIndex()public{
+        //Mint some tokens
+        vm.startPrank(minter);
+        nft.mintWithURI(user1, "test1");
+        nft.mintWithURI(user2, "test2");
+        nft.mintWithURI(user1, "test3");
+        vm.stopPrank();
+
+        assertEq(nft.totalSupply(),3);
+        assertEq(nft.tokenByIndex(0),1);
+        assertEq(nft.tokenByIndex(1), 2);
+        assertEq(nft.tokenByIndex(2), 3);
+        uint256 total_supply = nft.totalSupply();
+        vm.expectRevert();
+        nft.tokenByIndex(total_supply+1);
+
+    }
+
+       function test_TokenOfOwnerByIndex() public {
+        // Mint tokens to user1
+        vm.startPrank(minter);
+        nft.mintWithURI(user1, "test1");
+        nft.mintWithURI(user2, "test2"); // Different owner
+        nft.mintWithURI(user1, "test3");
+        vm.stopPrank();
+        
+        assertEq(nft.balanceOf(user1), 2);
+        assertEq(nft.tokenOfOwnerByIndex(user1, 0), 1);
+        assertEq(nft.tokenOfOwnerByIndex(user1, 1), 3);
+        
+        assertEq(nft.balanceOf(user2), 1);
+        assertEq(nft.tokenOfOwnerByIndex(user2, 0), 2);
+    }
+
+    // =============================================================
+    //                        FUZZ TESTS
+    // =============================================================
+    function testFuzz_SetMintPrice(uint256 price)public {
+        //Bound the price to reasonable values to avoid overflow issues
+
+        price = bound(price,0,100 ether);
+        vm.prank(owner);
+        nft.setMintPrice(price);
+
+        assertEq(nft.mintPrice(),price);
+    }
+
+     function testFuzz_SetRoyaltyPercentage(uint256 percentage) public {
+        // Bound to valid royalty percentages (0-10%)
+        percentage = bound(percentage, 0, 1000);
+        
+        vm.prank(owner);
+        nft.setRoyaltyInfo(user1, percentage);
+        
+        assertEq(nft.royaltyPercentage(), percentage);
+        
+        // Test royalty calculation
+        (address receiver, uint256 royaltyAmount) = nft.royaltyInfo(1, 1 ether);
+        assertEq(receiver, user1);
+        assertEq(royaltyAmount, (1 ether * percentage) / 10000);
+    }
+
+    function testFuzz_PublicMint(address to , uint256 payment)public{
+        //Ensure 'to' is not zero address and not a contract
+        vm.assume(to != address(0) && to != address(nft));
+        vm.assume(to.code.length ==0);
+
+        vm.prank(owner);
+        nft.setPublicMintEnabled(true);
+
+        vm.deal(to, payment);
+
+        if(payment >= nft.mintPrice() && nft.mintedByAddress(to)<MAX_PER_WALLET){
+            vm.prank(to);
+            nft.publicMint{value:payment}(to);
+
+            assertEq(nft.balanceOf(to),1);
+            assertEq(nft.ownerOf(nft.totalSupply()),to);
+        } else {
+            vm.prank(to);
+            if (payment < nft.mintPrice()) {
+                vm.expectRevert(MyNFT.InsufficientPayment.selector);
+            } else {
+                vm.expectRevert(MyNFT.ExceedsMaxPerWallet.selector);
+            }
+            nft.publicMint{value: payment}(to);
+        }
+    }
+
+    function testFuzz_BatchMint(uint8 numRecipients) public {
+        // Bound to reasonable number to avoid gas issues
+        numRecipients = uint8(bound(numRecipients, 1, 100));
+        
+        address[] memory recipients = new address[](numRecipients);
+        for (uint256 i = 0; i < numRecipients; i++) {
+            recipients[i] = address(uint160(i + 1000)); // Avoid zero address
+        }
+        
+        vm.prank(minter);
+        nft.batchMint(recipients);
+        
+        assertEq(nft.totalSupply(), numRecipients);
+        
+        // Check each recipient got a token
+        for (uint256 i = 0; i < numRecipients; i++) {
+            assertEq(nft.balanceOf(recipients[i]), 1);
+            assertEq(nft.ownerOf(i + 1), recipients[i]);
+        }
+    }
+    
+    function testFuzz_WhitelistOperations(address[] calldata addresses) public {
+        // Filter out zero address and duplicates
+        address[] memory validAddresses = new address[](0);
+        
+        for (uint256 i = 0; i < addresses.length && i < 50; i++) { // Limit to 50 for gas
+            if (addresses[i] != address(0)) {
+                // Simple duplicate check (not efficient but works for testing)
+                bool isDuplicate = false;
+                for (uint256 j = 0; j < validAddresses.length; j++) {
+                    if (validAddresses[j] == addresses[i]) {
+                        isDuplicate = true;
+                        break;
+                    }
+                }
+                if (!isDuplicate) {
+                    // Extend array (inefficient but works for testing)
+                    address[] memory newArray = new address[](validAddresses.length + 1);
+                    for (uint256 k = 0; k < validAddresses.length; k++) {
+                        newArray[k] = validAddresses[k];
+                    }
+                    newArray[validAddresses.length] = addresses[i];
+                    validAddresses = newArray;
+                }
+            }
+        }
+        
+        if (validAddresses.length > 0) {
+            vm.prank(owner);
+            nft.addToWhitelist(validAddresses);
+            
+            // Check all addresses are whitelisted
+            for (uint256 i = 0; i < validAddresses.length; i++) {
+                assertTrue(nft.isWhitelisted(validAddresses[i]));
+            }
+            
+            // Remove from whitelist
+            vm.prank(owner);
+            nft.removeFromWhitelist(validAddresses);
+            
+            // Check all addresses are removed
+            for (uint256 i = 0; i < validAddresses.length; i++) {
+                assertFalse(nft.isWhitelisted(validAddresses[i]));
+            }
+        }
+    }
+
+    // =============================================================
+    //                        EDGE CASE TESTS
+    // =============================================================
+    
+    function test_MintToZeroAddress() public {
+        vm.prank(minter);
+        vm.expectRevert();
+        nft.mintWithURI(address(0), "test");
+    }
+    
+    function test_TransferToZeroAddress() public {
+        // Mint a token first
+        vm.prank(minter);
+        nft.mintWithURI(user1, "test");
+        
+        vm.prank(user1);
+        vm.expectRevert();
+        nft.transferFrom(user1, address(0), 1);
+    }
+    
+    function test_TransferNonexistentToken() public {
+        vm.prank(user1);
+        vm.expectRevert();
+        nft.transferFrom(user1, user2, 999);
+    }
+    
+    function test_ApproveNonexistentToken() public {
+        vm.prank(user1);
+        vm.expectRevert();
+        nft.approve(user2, 999);
+    }
+    
+    function test_TokenURINonexistentToken() public {
+        vm.expectRevert();
+        nft.tokenURI(999);
+    }
+    
+    function test_OwnerOfNonexistentToken() public {
+        vm.expectRevert();
+        nft.ownerOf(999);
+    }
+    
+    function test_ReentrancyProtection() public {
+        // This is a basic test - in practice you'd create a malicious contract
+        // that tries to reenter during mint
+        vm.prank(owner);
+        nft.setPublicMintEnabled(true);
+        
+        // Multiple calls in same transaction should work fine
+        // but actual reentrancy would be prevented by ReentrancyGuard
+        vm.startPrank(user1);
+        nft.publicMint{value: MINT_PRICE}(user1);
+        nft.publicMint{value: MINT_PRICE}(user1);
+        vm.stopPrank();
+        
+        assertEq(nft.balanceOf(user1), 2);
+    }
+    
+    function test_ExcessPaymentHandling() public {
+        vm.prank(owner);
+        nft.setPublicMintEnabled(true);
+        
+        uint256 excessPayment = MINT_PRICE * 2;
+        uint256 contractBalanceBefore = address(nft).balance;
+        
+        vm.prank(user1);
+        nft.publicMint{value: excessPayment}(user1);
+        
+        // Contract should receive the full payment (no refund mechanism)
+        assertEq(address(nft).balance, contractBalanceBefore + excessPayment);
+        assertEq(nft.balanceOf(user1), 1);
+    }
+
+    // =============================================================
+    //                        GAS OPTIMIZATION TESTS
+    // =============================================================
+    
+    function test_GasUsage_SingleMint() public {
+        vm.prank(owner);
+        nft.setPublicMintEnabled(true);
+        
+        uint256 gasBefore = gasleft();
+        vm.prank(user1);
+        nft.publicMint{value: MINT_PRICE}(user1);
+        uint256 gasUsed = gasBefore - gasleft();
+        
+        console.log("Gas used for single mint:", gasUsed);
+        // Assert gas usage is reasonable (adjust based on your requirements)
+        assertLt(gasUsed, 200000); // Less than 200k gas
+    }
+    
+    function test_GasUsage_BatchMint() public {
+        address[] memory recipients = new address[](10);
+        for (uint256 i = 0; i < 10; i++) {
+            recipients[i] = address(uint160(i + 1));
+        }
+        
+        uint256 gasBefore = gasleft();
+        vm.prank(minter);
+        nft.batchMint(recipients);
+        uint256 gasUsed = gasBefore - gasleft();
+        
+        console.log("Gas used for batch mint (10 tokens):", gasUsed);
+        console.log("Gas per token:", gasUsed / 10);
+    }
+
+    // =============================================================
+    //                        INTEGRATION TESTS
+    // =============================================================
+    
+    function test_FullWorkflow() public {
+        // 1. Setup: Enable minting and whitelist some users
+        address[] memory whitelist = new address[](2);
+        whitelist[0] = user1;
+        whitelist[1] = user2;
+        
+        vm.startPrank(owner);
+        nft.addToWhitelist(whitelist);
+        nft.setWhitelistMintEnabled(true);
+        nft.setPublicMintEnabled(true);
+        vm.stopPrank();
+        
+        // 2. Whitelist minting
+        vm.prank(user1);
+        nft.whitelistMint{value: MINT_PRICE}(user1);
+        
+        // 3. Public minting
+        vm.prank(user3);
+        nft.publicMint{value: MINT_PRICE}(user3);
+        //Removing baseuri to make custom uri default
+        vm.prank(owner);
+        nft.setBaseURI("");
+        // 4. Admin minting
+        vm.prank(minter);
+        uint256 tokenId = nft.mintWithURI(user2, "special-uri");
+        
+        // 5. Verify state
+        assertEq(nft.totalSupply(), 3);
+        assertEq(nft.balanceOf(user1), 1);
+        assertEq(nft.balanceOf(user2), 1);
+        assertEq(nft.balanceOf(user3), 1);
+        assertEq(nft.tokenURI(tokenId), "special-uri");
+        
+        // 6. Transfer
+        vm.prank(user1);
+        nft.transferFrom(user1, user2, 1);
+        assertEq(nft.balanceOf(user2), 2);
+        
+        // 7. Pause and unpause
+        vm.prank(pauser);
+        nft.pause();
+        assertTrue(nft.paused());
+        
+        vm.prank(pauser);
+        nft.unpause();
+        assertFalse(nft.paused());
+        
+        // 8. Withdraw funds
+        uint256 contractBalance = address(nft).balance;
+        vm.prank(owner);
+        nft.withdraw();
+        assertEq(address(nft).balance, 0);
+    }
+    
+    // =============================================================
+    //                        HELPER FUNCTIONS
+    // =============================================================
+    
+    function test_HelperFunctions() public {
+        assertEq(nft.getCurrentTokenId(), 1);
+        assertEq(nft.totalMinted(), 0);
+        
+        vm.prank(minter);
+        nft.mintWithURI(user1, "test");
+        
+        assertEq(nft.getCurrentTokenId(), 2);
+        assertEq(nft.totalMinted(), 1);
+    }
+    
+    // Test royalty calculation with different sale prices
+    function test_RoyaltyCalculation() public {
+        // Default royalty is 5% (500 basis points)
+        (address receiver, uint256 royalty1) = nft.royaltyInfo(1, 1 ether);
+        assertEq(receiver, owner);
+        assertEq(royalty1, 0.05 ether);
+        
+        (address receiver2, uint256 royalty2) = nft.royaltyInfo(1, 2 ether);
+        assertEq(receiver2, owner);
+        assertEq(royalty2, 0.1 ether);
+        
+        // Change royalty settings
+        vm.prank(owner);
+        nft.setRoyaltyInfo(user1, 1000); // 10%
+        
+        (address receiver3, uint256 royalty3) = nft.royaltyInfo(1, 1 ether);
+        assertEq(receiver3, user1);
+        assertEq(royalty3, 0.1 ether);
+    }
 }
