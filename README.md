@@ -6,6 +6,8 @@ This project showcases **production-ready smart contract development** with meti
 
 ---
 
+## 📃**Medium Article** 
+https://www.linkedin.com/feed/update/urn:li:ugcPost:7370042693923721216/
 ## 🏗️ **Architecture Overview**
 
 ### **Contract Design Principles**
